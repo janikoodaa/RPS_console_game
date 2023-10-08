@@ -1,32 +1,45 @@
 ﻿namespace RockPaperScissors;
 public class Game
 {
-    public bool WantToPlay { get; set; }
     public int TotalRoundCount { get; set; }
-    public int CurrentRound { get; set; } = 1;
-    public int PlayerWins { get; set; } = 0;
-    public int ComputerWins { get; set; } = 0;
-    private readonly KeyValuePair<char, string>[] Options = new KeyValuePair<char, string>[3] { new('k', "kivi"), new('p', "paperi"), new('s', "sakset") };
+    public int CurrentRound { get; set; }
+    public Result GameResult { get; set; }
 
-    public Game()
+    private readonly IGameContext _gameContext;
+    public Game(IGameContext gameContext)
     {
-        WantToPlay = true;
+        _gameContext = gameContext;
+        TotalRoundCount = 0;
+        CurrentRound = 0;
+        GameResult = new Result();
     }
 
     /// <summary>
-    /// Asks for user input on how many rounds of the game will be played
+    /// Starts a new game
     /// </summary>
-    public void AskRoundCount()
+    public void Start()
+    {
+        CurrentRound = 1;
+        ChooseRoundCount();
+        do
+        {
+            PlayRound();
+        } while (CurrentRound <= TotalRoundCount);
+        _gameContext.PrintLogo();
+        GameResult.DisplayGameResult();
+    }
+
+    /// <summary>
+    /// Determine, how many rounds of RPS one game takes
+    /// </summary>
+    public void ChooseRoundCount()
     {
         int rounds;
         do
         {
-            Header.ShowLogo();
-            Console.WriteLine("\t\tMontako kierrosta haluat pelata?");
-            Console.WriteLine("\t\t1 - 3 kierrosta = PIKAPELI");
-            Console.WriteLine("\t\t4 - 10 kierrosta = NORMAALI PELI");
-            Console.WriteLine("\t\t10 - 20 kierrosta = MARATONPELI");
-            Console.Write("\n\t\tKierrosten määrä: ");
+            _gameContext.PrintLogo();
+            Console.WriteLine("\t   Montako kierrosta haluat pelata (1-20)?\n");
+            Console.Write("\t\t   Kierrosten määrä: ");
             string? input = Console.ReadLine();
             bool success = int.TryParse(input, out rounds);
             if (!success)
@@ -43,23 +56,43 @@ public class Game
             }
         } while (rounds < 1 || rounds > 20);
 
-        Header.ShowLogo();
+        _gameContext.PrintLogo();
         TotalRoundCount = rounds;
-        Console.WriteLine("\t\t\tPelaat {0} kierrosta!", rounds);
+        Console.Write($"\n\t\t\tPelaat {rounds} kierrosta!");
         Thread.Sleep(1000);
     }
 
     /// <summary>
+    /// Ask player for confirmation to play a new game.
+    /// </summary>
+    /// <returns>True if player wants to play another game, otherwise false.</returns>
+    public static bool ConfirmContinue()
+    {
+        ConsoleKeyInfo keyInfo;
+        Console.Write("\nPaina enter, jos haluat pelata uuden pelin, tai jos haluat lopettaa, paina esc.");
+        do
+        {
+            keyInfo = Console.ReadKey(true);
+            if (keyInfo.Key == ConsoleKey.Escape)
+            {
+                return false;
+            }
+        } while (keyInfo.Key != ConsoleKey.Enter);
+        return true;
+    }
+
+
+    /// <summary>
     /// Executes one round of the game
     /// </summary>
-    public void PlayRound()
+    private void PlayRound()
     {
         ConsoleKeyInfo keyInfo;
 
-        Header.ShowLogo();
+        _gameContext.PrintLogo();
         Console.WriteLine($"\t\t\tKIERROS {CurrentRound}\n");
         Console.WriteLine("\t\t\tTee valintasi:");
-        foreach (var option in Options)
+        foreach (var option in Jury.RPS)
         {
             Console.WriteLine($"\t\t\t{option.Key} = {option.Value}");
         }
@@ -69,112 +102,42 @@ public class Game
             keyInfo = Console.ReadKey(true);
         } while (keyInfo.Key != ConsoleKey.K && keyInfo.Key != ConsoleKey.P && keyInfo.Key != ConsoleKey.S);
 
-        string playerSelection = Array.Find(Options, kv => kv.Key == keyInfo.KeyChar).Value;
+        string playerSelection = Array.Find(Jury.RPS, kv => kv.Key == keyInfo.KeyChar).Value;
         Console.Write($"{playerSelection}");
-        Thread.Sleep(1000);
-        var computerSelection = GetRandomRPS();
-        Console.WriteLine();
-        Console.WriteLine($"\t\tTietokone valitsi: {computerSelection.Value}\n");
-        if (playerSelection == computerSelection.Value)
-        {
-            Console.WriteLine("\t\tTasapeli, ei pisteitä tältä kierrokselta.");
-        }
-        else
-        {
-            Console.WriteLine(CheckIfPlayerWins(playerSelection, computerSelection.Value)
-            ? $"\t\t\tSinä voitit!\n\t\tPistetilanne sinä {PlayerWins} - {ComputerWins} tietokone"
-            : $"\t\t\tTietokone voitti!\n\t\tPistetilanne sinä {PlayerWins} - {ComputerWins} tietokone");
-        }
+        KeyValuePair<char, string> computerSelection = GetRandomRPS();
 
-        Thread.Sleep(3000);
-        CurrentRound++;
-
-    }
-
-    /// <summary>
-    /// Shows the results of the entire game
-    /// </summary>
-    public void ShowResult()
-    {
-        Header.ShowLogo();
-        Console.WriteLine();
-        Console.WriteLine($"\t{TotalRoundCount} kierrosta pelattu ja päädyttiin tilanteeseen");
-        Console.WriteLine("\t\t\tSINÄ - TIETOKONE");
-        Console.WriteLine($"\t\t\t   {PlayerWins} - {ComputerWins}");
-        if (PlayerWins == ComputerWins)
-        {
-            Console.WriteLine("\t\t\t  TASAPELI");
-        }
-        else if (PlayerWins > ComputerWins)
-        {
-            Console.WriteLine("\t\t\tSINÄ VOITIT!");
-        }
-        else
-        {
-            Console.WriteLine("\t\t\tTIETOKONE VOITTI!");
-        }
-    }
-
-    /// <summary>
-    /// Asks, if user wants to play another game
-    /// </summary>
-    public void AskToContinue()
-    {
-        ConsoleKeyInfo keyInfo;
-        Console.Write("\n\t   Haluaisitko pelata uuden pelin (k/e)?");
+        Console.Write("\n\t\t\tJännitetään");
+        int dotsWritten = 0;
         do
         {
-            keyInfo = Console.ReadKey(true);
-        } while (keyInfo.Key != ConsoleKey.K && keyInfo.Key != ConsoleKey.E);
-        if (keyInfo.Key == ConsoleKey.K)
-        {
-            Continue();
-        }
-        if (keyInfo.Key == ConsoleKey.E)
-        {
-            WantToPlay = false;
-        }
+            Console.Write(".");
+            dotsWritten++;
+            Thread.Sleep(200);
+        } while (dotsWritten < 6);
+        Console.WriteLine();
+        Console.WriteLine($"\n\t\t\tTietokone valitsi: {computerSelection.Value}\n");
+
+        Result roundResult = Jury.EvaluateRound(keyInfo.KeyChar, computerSelection.Key);
+
+        GameResult.LogResult(roundResult);
+
+        roundResult.DisplayRoundResult();
+
+        Console.WriteLine($"\n\t\tPistetilanne sinä {GameResult.PlayerWins} - {GameResult.ComputerWins} tietokone");
+        Thread.Sleep(3000);
+
+        CurrentRound++;
+
     }
 
     /// <summary>
     /// Get the random computer selection out of the rock, paper and scissors
     /// </summary>
     /// <returns>A random KeyValuePair of the rock, paper and scissors</returns>
-    private KeyValuePair<char, string> GetRandomRPS()
+    private static KeyValuePair<char, string> GetRandomRPS()
     {
         Random rnd = new();
-        int index = rnd.Next(0, 2);
-        return Options[index];
-    }
-
-    /// <summary>
-    /// Check if player wins. The case of even should be handled before this method.
-    /// </summary>
-    /// <param name="playerSelection"></param>
-    /// <param name="computerSelection"></param>
-    /// <returns>True, if player wins and false, if computer wins</returns>
-    private bool CheckIfPlayerWins(string playerSelection, string computerSelection)
-    {
-        if ((playerSelection == "kivi" && computerSelection == "sakset") || (playerSelection == "paperi" && computerSelection == "kivi") || (playerSelection == "sakset" && computerSelection == "paperi"))
-        {
-            PlayerWins++;
-            return true;
-        }
-        else
-        {
-            ComputerWins++;
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Reset counters and calculations, if player wats to play another game.
-    /// </summary>
-    public void Continue()
-    {
-        CurrentRound = 1;
-        PlayerWins = 0;
-        ComputerWins = 0;
-        WantToPlay = true;
+        int index = rnd.Next(0, 1000);
+        return Jury.RPS[index % 3];
     }
 }

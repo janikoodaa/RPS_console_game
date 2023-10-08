@@ -1,18 +1,10 @@
-﻿// See https://aka.ms/new-console-template for more information
-
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using RockPaperScissors;
 
-Game game = Header.StartGame();
-do
-{
-    game.AskRoundCount();
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
-    do
-    {
-        game.PlayRound();
-    } while (game.TotalRoundCount - game.CurrentRound >= 0);
+IGameContext gameCtx = new GameContext();
+builder.Services.AddSingleton(serviceProvider => gameCtx);
 
-    game.ShowResult();
-    game.AskToContinue();
-
-} while (game.WantToPlay);
+builder.Build();
